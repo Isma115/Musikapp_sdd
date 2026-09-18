@@ -75,9 +75,7 @@ class YouTubeAudioService {
   static const _convertTimeout = Duration(seconds: 120);
 
   Future<List<YouTubeVideo>> search(String query) async {
-    final results = await _client.search
-        .search(query)
-        .timeout(_searchTimeout);
+    final results = await _client.search.search(query).timeout(_searchTimeout);
     return results
         .map(
           (video) => YouTubeVideo(
@@ -89,6 +87,19 @@ class YouTubeAudioService {
           ),
         )
         .toList(growable: false);
+  }
+
+  /// Obtiene la pista de audio remota de [video] para reproducirla en
+  /// streaming, sin crear ningún fichero en Descargas.
+  Future<Uri> getAudioStreamUri(YouTubeVideo video) async {
+    final manifest = await _client.videos.streams
+        .getManifest(video.id)
+        .timeout(_manifestTimeout);
+    final candidates = _orderedCandidates(manifest, DownloadMethod.automatic);
+    if (candidates.isEmpty) {
+      throw StateError('El vídeo no ofrece una pista de audio reproducible.');
+    }
+    return candidates.first.url;
   }
 
   /// Descarga el audio de [video] y lo convierte a MP3 en Descargas.
@@ -162,10 +173,7 @@ class YouTubeAudioService {
         return <AudioStreamInfo>[...audioOnly, ...muxed];
       case DownloadMethod.highQuality:
         // Prioriza solo-audio de mayor a menor; si no hay, usa muxed.
-        return <AudioStreamInfo>[
-          ...audioOnly,
-          if (audioOnly.isEmpty) ...muxed,
-        ];
+        return <AudioStreamInfo>[...audioOnly, if (audioOnly.isEmpty) ...muxed];
       case DownloadMethod.lowQuality:
         // Mismo conjunto solo-audio pero empezando por el más ligero.
         final lightestFirst = audioOnly.reversed.toList(growable: false);
@@ -206,9 +214,8 @@ class YouTubeAudioService {
         onProgress?.call(0);
         var receivedBytes = 0;
         var lastReported = -1.0;
-        await for (final chunk in _client.videos.streams
-            .get(stream)
-            .timeout(_streamTimeout)) {
+        await for (final chunk
+            in _client.videos.streams.get(stream).timeout(_streamTimeout)) {
           sink.add(chunk);
           receivedBytes += chunk.length;
           final progress = (receivedBytes / totalBytes).clamp(0.0, 1.0);

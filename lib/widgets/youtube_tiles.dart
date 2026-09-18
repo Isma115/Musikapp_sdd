@@ -38,10 +38,7 @@ class YouTubeDownloadTile extends StatelessWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    CircularProgressIndicator(
-                      strokeWidth: 3,
-                      value: progress,
-                    ),
+                    CircularProgressIndicator(strokeWidth: 3, value: progress),
                     if (progress != null)
                       Text(
                         '${(progress! * 100).round()}%',
@@ -66,16 +63,34 @@ class YouTubeDownloadTile extends StatelessWidget {
 /// Fila de enlace a YouTube del visor.
 /// Extraída de `main.dart` sin cambios visuales ni de comportamiento.
 class YouTubeLinkTile extends StatelessWidget {
-  const YouTubeLinkTile({required this.video, required this.onOpen, super.key});
+  const YouTubeLinkTile({
+    required this.video,
+    required this.isPlaying,
+    required this.onOpen,
+    required this.onPlay,
+    super.key,
+  });
 
   final YouTubeVideo video;
+  final bool isPlaying;
   final VoidCallback onOpen;
+  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.link),
+      leading: IconButton(
+        onPressed: isPlaying ? null : onPlay,
+        tooltip: 'Reproducir audio de YouTube',
+        icon: isPlaying
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.play_arrow),
+      ),
       title: Text(video.title),
       subtitle: Text('${video.author} · ${formatDuration(video.duration)}'),
       trailing: IconButton(

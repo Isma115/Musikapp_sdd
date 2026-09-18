@@ -2,17 +2,29 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_models.dart';
+import '../theme/app_theme.dart';
+import '../widgets/background_decoration.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/playlist_icon.dart';
+import '../widgets/playlist_icon_picker.dart';
 
 /// Detalle de playlist con altura fija por canción (64px).
 /// Extraído de `main.dart` sin cambios visuales ni de comportamiento: cada
 /// canción se reproduce con el botón o pulsando la fila.
+///
+/// Spec "Fix: Sección de reproducción": este detalle ya no se empuja como ruta
+/// propia; el shell lo muestra dentro de su cuerpo, debajo de su AppBar (que
+/// pasa a titular la playlist) y por encima de la barra de reproducción. Así el
+/// cuadro de reproducción aparece en cuanto suena la canción, sin tener que
+/// volver a la lista de playlists. Se conserva el `Scaffold` interno, sin
+/// AppBar, para no alterar el comportamiento de los avisos (`SnackBar`).
 class PlaylistDetailPage extends StatefulWidget {
   const PlaylistDetailPage({
     required this.playlist,
     required this.availableTracks,
     required this.onTracksChanged,
     this.onPlayQueue,
+    this.onIconColorChanged,
     super.key,
   });
 
@@ -21,12 +33,23 @@ class PlaylistDetailPage extends StatefulWidget {
   final ValueChanged<List<AudioTrack>> onTracksChanged;
   final void Function(List<AudioTrack> queue, int index)? onPlayQueue;
 
+  /// Cambia el color del icono de la playlist (spec "Icono de playlist con
+  /// color"); `null` lo deja sin color propio.
+  final ValueChanged<int?>? onIconColorChanged;
+
   @override
   State<PlaylistDetailPage> createState() => PlaylistDetailPageState();
 }
 
 class PlaylistDetailPageState extends State<PlaylistDetailPage> {
   static const _snackBarDuration = Duration(seconds: 3);
+
+  /// Símbolos grandes del fondo (spec "Iconos atractivos").
+  static const _backgroundIcons = <IconData>[
+    Icons.music_note,
+    Icons.album,
+    Icons.graphic_eq,
+  ];
 
   late List<AudioTrack> _tracks;
 
@@ -175,19 +198,61 @@ class PlaylistDetailPageState extends State<PlaylistDetailPage> {
     onPlayQueue(List<AudioTrack>.unmodifiable(_tracks), index);
   }
 
+  /// Spec "Icono de playlist con color": desde el propio detalle se puede
+  /// cambiar el color del icono de la playlist abierta.
+  Future<void> _pickIconColor() async {
+    final onIconColorChanged = widget.onIconColorChanged;
+    if (onIconColorChanged == null) {
+      return;
+    }
+    final selected = await showPlaylistIconColorPicker(
+      context: context,
+      currentIndex: widget.playlist.iconColorIndex,
+      playlistName: widget.playlist.name,
+    );
+    // `null` = el diálogo se cerró sin elegir: no se toca la playlist.
+    if (selected == null) {
+      return;
+    }
+    onIconColorChanged(selected == removePlaylistIconColor ? null : selected);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.playlist.name)),
-      body: Padding(
+    final onIconColorChanged = widget.onIconColorChanged;
+    return BackgroundDecor(
+      icons: _backgroundIcons,
+      accent: appSectionAccents[0],
+      child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OutlinedButton.icon(
-              onPressed: _addSongs,
-              icon: const Icon(Icons.add),
-              label: const Text('+ Añadir canción'),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _addSongs,
+                    icon: const Icon(Icons.add),
+                    // Spec "El botón de 'Añadir x' no tiene que tener el botón
+                    // '+' duplicado": el signo ya lo aporta el icono.
+                    label: const Text('Añadir canción'),
+                  ),
+                ),
+                if (onIconColorChanged != null) ...[
+                  const SizedBox(width: 12),
+                  Tooltip(
+                    message: 'Color del icono',
+                    child: InkWell(
+                      onTap: _pickIconColor,
+                      child: PlaylistIcon(
+                        colorIndex: widget.playlist.iconColorIndex,
+                        size: 48,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 16),
             Expanded(

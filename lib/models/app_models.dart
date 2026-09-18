@@ -1,5 +1,7 @@
 import 'package:path/path.dart' as p;
 
+import '../utils/playlist_colors.dart';
+
 class AudioTrack {
   const AudioTrack({required this.path, required this.name});
 
@@ -34,7 +36,11 @@ class AudioTrack {
 }
 
 class Playlist {
-  const Playlist({required this.name, this.tracks = const <AudioTrack>[]});
+  const Playlist({
+    required this.name,
+    this.tracks = const <AudioTrack>[],
+    this.iconColorIndex,
+  });
 
   factory Playlist.fromJson(Map<String, dynamic> json) {
     final name = json['name'];
@@ -57,20 +63,43 @@ class Playlist {
       }
     }
 
-    return Playlist(name: name.trim(), tracks: tracks);
+    return Playlist(
+      name: name.trim(),
+      tracks: tracks,
+      // Spec "Icono de playlist con color": el color se guarda como índice de
+      // la paleta de la aplicación. Un índice desconocido (fichero editado a
+      // mano o paleta recortada) se descarta y la playlist queda sin color.
+      iconColorIndex: PlaylistColors.normalizeIndex(
+        json['iconColorIndex'] is int ? json['iconColorIndex'] as int : null,
+      ),
+    );
   }
 
   final String name;
   final List<AudioTrack> tracks;
 
+  /// Color del icono de la playlist como índice de la paleta de la aplicación
+  /// (`appPlaylistIconColors`). `null` mientras el usuario no le haya dado
+  /// color.
+  final int? iconColorIndex;
+
   Playlist copyWithTracks(List<AudioTrack> updatedTracks) => Playlist(
     name: name,
     tracks: List<AudioTrack>.unmodifiable(updatedTracks),
+    iconColorIndex: iconColorIndex,
+  );
+
+  /// Devuelve la playlist con otro color de icono.
+  Playlist copyWithIconColor(int? updatedIconColorIndex) => Playlist(
+    name: name,
+    tracks: tracks,
+    iconColorIndex: PlaylistColors.normalizeIndex(updatedIconColorIndex),
   );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'name': name,
     'tracks': tracks.map((track) => track.toJson()).toList(),
+    if (iconColorIndex != null) 'iconColorIndex': iconColorIndex,
   };
 }
 

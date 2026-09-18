@@ -30,6 +30,7 @@ class AudioPlayerService {
   final _queueController = StreamController<PlaybackQueueState?>.broadcast();
   PlaybackQueueState? _queueState;
   bool _disposed = false;
+  int _playbackRequest = 0;
 
   AudioPlayer get player => _player;
 
@@ -49,13 +50,42 @@ class AudioPlayerService {
     if (tracks.isEmpty || _disposed) {
       return;
     }
+    final request = ++_playbackRequest;
     final index = startIndex.clamp(0, tracks.length - 1);
     _queueState = PlaybackQueueState(
       queue: List<AudioTrack>.unmodifiable(tracks),
       index: index,
     );
     _queueController.add(_queueState);
-    await _playCurrent();
+    await _playCurrent(request);
+  }
+
+  /// Reproduce una pista remota sin incorporarla al almacenamiento local.
+  ///
+  /// La cola se mantiene con una sola entrada para que la barra de
+  /// reproducción reutilice sus controles, pero [uri] nunca se guarda como
+  /// una canción descargada.
+  Future<void> playStream(Uri uri, {required String name}) async {
+    if (_disposed) {
+      return;
+    }
+    final request = ++_playbackRequest;
+    final previousQueue = _queueState;
+    _queueState = PlaybackQueueState(
+      queue: <AudioTrack>[AudioTrack(path: uri.toString(), name: name)],
+      index: 0,
+    );
+    _queueController.add(_queueState);
+    try {
+      await _playCurrent(request);
+    } on Object {
+      if (request != _playbackRequest || _disposed) {
+        return;
+      }
+      _queueState = previousQueue;
+      _queueController.add(previousQueue);
+      rethrow;
+    }
   }
 
   Future<void> toggle() async {
@@ -64,11 +94,29 @@ class AudioPlayerService {
     } else {
       // Si no hay fuente cargada pero sí cola, (re)carga la actual.
       if (_player.audioSource == null && _queueState != null) {
-        await _playCurrent();
+        await _playCurrent(++_playbackRequest);
       } else {
         await _player.play();
       }
     }
+  }
+
+  /// Detiene la reproducción y elimina la cola visible en la interfaz.
+  ///
+  /// `AudioPlayer.stop` conserva la fuente cargada para poder reanudarla,
+  /// pero cerrar la ventana de reproducción requiere que el estado de cola
+  /// compartido también vuelva a ser nulo.
+  Future<void> stop() async {
+    if (_disposed) {
+      return;
+    }
+    final request = ++_playbackRequest;
+    await _player.stop();
+    if (request != _playbackRequest || _disposed) {
+      return;
+    }
+    _queueState = null;
+    _queueController.add(null);
   }
 
   Future<void> pause() => _player.pause();
@@ -80,12 +128,13 @@ class AudioPlayerService {
     if (state == null || !state.hasNext || _disposed) {
       return;
     }
+    final request = ++_playbackRequest;
     _queueState = PlaybackQueueState(
       queue: state.queue,
       index: state.index + 1,
     );
     _queueController.add(_queueState);
-    await _playCurrent();
+    await _playCurrent(request);
   }
 
   Future<void> playPrevious() async {
@@ -93,41 +142,75 @@ class AudioPlayerService {
     if (state == null || !state.hasPrevious || _disposed) {
       return;
     }
+    final request = ++_playbackRequest;
     _queueState = PlaybackQueueState(
       queue: state.queue,
       index: state.index - 1,
     );
     _queueController.add(_queueState);
-    await _playCurrent();
+    await _playCurrent(request);
   }
 
   Future<void> seek(Duration position) => _player.seek(position);
 
-  Future<void> _playCurrent() async {
+  Future<void> _playCurrent(int request) async {
+    if (_disposed || request != _playbackRequest) {
+      return;
+    }
     final track = _queueState?.current;
     if (track == null) {
       return;
     }
     try {
-      if (!await File(track.path).exists()) {
+      final remoteUri = _remoteUri(track.path);
+      final sourceUri = remoteUri ?? Uri.file(track.path);
+      if (remoteUri == null && !await File(track.path).exists()) {
         throw StateError('El archivo ya no está disponible en el dispositivo.');
       }
       await _player.setAudioSource(
         AudioSource.uri(
-          Uri.file(track.path),
-          tag: MediaItem(id: track.path, album: 'SDD Music', title: track.name),
+          sourceUri,
+          tag: MediaItem(
+            id: track.path,
+            album: remoteUri == null ? 'SDD Music' : 'YouTube',
+            title: track.name,
+          ),
         ),
       );
+      // Loading a source is asynchronous. A stop, next/previous action, or a
+      // new selection may have invalidated this operation while it was
+      // waiting. Never let that stale operation start playback again after
+      // the user has closed or replaced the queue.
+      if (_disposed ||
+          request != _playbackRequest ||
+          _queueState?.current.path != track.path) {
+        return;
+      }
       await _player.play();
     } on StateError {
+      if (_disposed || request != _playbackRequest) {
+        return;
+      }
       rethrow;
     } on Object {
+      if (_disposed || request != _playbackRequest) {
+        return;
+      }
       throw StateError('No se pudo reproducir la canción seleccionada.');
     }
   }
 
+  Uri? _remoteUri(String path) {
+    final uri = Uri.tryParse(path);
+    if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return null;
+    }
+    return uri;
+  }
+
   Future<void> dispose() async {
     _disposed = true;
+    _playbackRequest++;
     await _queueController.close();
     await _player.dispose();
   }

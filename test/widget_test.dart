@@ -10,11 +10,11 @@ void main() {
     await tester.pumpWidget(const MyApp());
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.text('+ Añadir Playlist'), findsOneWidget);
+    expect(find.text('Añadir Playlist'), findsOneWidget);
     expect(find.byType(NavigationDestination), findsNWidgets(4));
     expect(find.text('Descargar'), findsOneWidget);
-    expect(find.text('Recomendaciones'), findsOneWidget);
-    expect(find.text('Visor YouTube'), findsOneWidget);
+    expect(find.text('Recomendar'), findsOneWidget);
+    expect(find.text('Youtube'), findsOneWidget);
     expect(find.text('Todavía no hay playlists creadas.'), findsOneWidget);
   });
 }

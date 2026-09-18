@@ -15,6 +15,7 @@ class PlayerBar extends StatelessWidget {
     required this.onToggle,
     required this.onNext,
     required this.onPrevious,
+    required this.onClose,
     super.key,
   });
 
@@ -24,6 +25,7 @@ class PlayerBar extends StatelessWidget {
   final Future<void> Function() onToggle;
   final Future<void> Function() onNext;
   final Future<void> Function() onPrevious;
+  final Future<void> Function() onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +45,7 @@ class PlayerBar extends StatelessWidget {
             onToggle: onToggle,
             onNext: onNext,
             onPrevious: onPrevious,
+            onClose: onClose,
           );
         }
         return _CollapsedPlayer(
@@ -52,6 +55,7 @@ class PlayerBar extends StatelessWidget {
           onToggle: onToggle,
           onNext: onNext,
           onPrevious: onPrevious,
+          onClose: onClose,
         );
       },
     );
@@ -66,6 +70,7 @@ class _CollapsedPlayer extends StatelessWidget {
     required this.onToggle,
     required this.onNext,
     required this.onPrevious,
+    required this.onClose,
   });
 
   final AudioPlayerService player;
@@ -74,11 +79,15 @@ class _CollapsedPlayer extends StatelessWidget {
   final Future<void> Function() onToggle;
   final Future<void> Function() onNext;
   final Future<void> Function() onPrevious;
+  final Future<void> Function() onClose;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      // Spec "Mejora de paleta de colores": un contenedor un escalón por encima
+      // del AppBar y del menú inferior, para que la barra de reproducción se
+      // distinga sin necesidad de sombras.
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: SizedBox(
         height: 64,
         child: Row(
@@ -125,6 +134,11 @@ class _CollapsedPlayer extends StatelessWidget {
               tooltip: 'Siguiente canción',
               icon: const Icon(Icons.skip_next),
             ),
+            IconButton(
+              onPressed: onClose,
+              tooltip: 'Cerrar reproducción',
+              icon: const Icon(Icons.close),
+            ),
           ],
         ),
       ),
@@ -140,6 +154,7 @@ class _ExpandedPlayer extends StatelessWidget {
     required this.onToggle,
     required this.onNext,
     required this.onPrevious,
+    required this.onClose,
   });
 
   final AudioPlayerService player;
@@ -148,11 +163,14 @@ class _ExpandedPlayer extends StatelessWidget {
   final Future<void> Function() onToggle;
   final Future<void> Function() onNext;
   final Future<void> Function() onPrevious;
+  final Future<void> Function() onClose;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      // Vista expandida: mismo contenedor alto que la contraída, para que al
+      // desplegarse no cambie el tono de la barra.
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
         child: Column(
@@ -172,6 +190,11 @@ class _ExpandedPlayer extends StatelessWidget {
                   onPressed: onCollapse,
                   tooltip: 'Contraer reproducción',
                   icon: const Icon(Icons.expand_more),
+                ),
+                IconButton(
+                  onPressed: onClose,
+                  tooltip: 'Cerrar reproducción',
+                  icon: const Icon(Icons.close),
                 ),
               ],
             ),
@@ -228,10 +251,7 @@ class PlaybackToggleButton extends StatelessWidget {
         return IconButton(
           onPressed: onToggle,
           tooltip: playing ? 'Pausar' : 'Reproducir',
-          icon: Icon(
-            playing ? Icons.pause : Icons.play_arrow,
-            size: size,
-          ),
+          icon: Icon(playing ? Icons.pause : Icons.play_arrow, size: size),
         );
       },
     );

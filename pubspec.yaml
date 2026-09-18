@@ -61,6 +61,11 @@ flutter_launcher_icons:
   image_path: assets/app_icon.png
   remove_alpha_ios: true
   background_color_ios: "#0B0D1A"
+  # Icono adaptativo de Android (API 26+): el lanzador recorta el primer plano
+  # con su propia máscara sobre el color de fondo, en lugar de encoger el icono
+  # cuadrado dentro de una forma blanca.
+  adaptive_icon_background: "#10152B"
+  adaptive_icon_foreground: assets/app_icon_foreground.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

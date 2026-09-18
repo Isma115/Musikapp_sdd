@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_models.dart';
+import '../theme/app_theme.dart';
+import '../widgets/background_decoration.dart';
 import '../widgets/empty_state.dart';
 
 /// Vista de recomendaciones (lista con puntuación).
@@ -14,12 +16,27 @@ class RecommendationsView extends StatelessWidget {
     super.key,
   });
 
+  /// Símbolos grandes del fondo (spec "Iconos atractivos").
+  static const _backgroundIcons = <IconData>[
+    Icons.auto_awesome,
+    Icons.equalizer,
+    Icons.favorite,
+  ];
+
   final List<AudioTrack> queue;
   final List<int> scores;
   final ValueChanged<int> onPlayAt;
 
   @override
   Widget build(BuildContext context) {
+    return BackgroundDecor(
+      icons: _backgroundIcons,
+      accent: appSectionAccents[2],
+      child: _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     if (queue.isEmpty) {
       return const EmptyState(
         icon: Icons.auto_awesome,

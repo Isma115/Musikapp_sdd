@@ -1,0 +1,116 @@
+diagram "Descarga de música nueva por YouTube"
+
+# No hay base de datos: las descargas se guardan en StoredState como JSON.
+# La descarga permanece ligada al flujo activo de MusicShell; no hay un
+# servicio independiente de descargas en segundo plano.
+# automatic prueba audioOnly y luego muxed; highQuality, lowQuality y
+# compatible cambian ese orden según DownloadMethod.
+
+node inicio "Abrir la sección Descargar" start
+node escribirConsulta "Escribir término y pulsar Buscar" step
+node validarConsulta "¿Consulta no vacía y búsqueda libre?" decision
+node finConsultaInvalida "Fin: búsqueda no iniciada" end
+node prepararBusqueda "Desenfocar, limpiar resultados y activar búsqueda" step
+node buscarYoutube "YouTubeExplode.search (timeout 20 s)" step
+node resultadoBusqueda "¿Búsqueda completada?" decision
+node mostrarErrorBusqueda "Mostrar error y quitar indicador de búsqueda" step
+node finErrorBusqueda "Fin: búsqueda fallida" end
+node mostrarResultados "Mostrar vídeos encontrados" step
+node accionVideo "¿Descargar, abrir Opciones o no actuar?" decision
+node finSoloResultados "Fin: solo se muestran resultados" end
+node abrirOpciones "Abrir opciones de descarga" step
+node elegirMetodo "¿Se elige un método de descarga?" decision
+node finOpcionesCanceladas "Fin: opciones canceladas" end
+node iniciarDescarga "Bloquear vídeo e iniciar descarga con método vigente" step
+node elegirDirectorio "Probar Descargas y fallback a Documentos" step
+node directorioDisponible "¿Hay una carpeta escribible?" decision
+node obtenerNombre "Sanitizar título, recortar a 80 y reservar .mp3 único" step
+node obtenerManifest "Obtener manifest de streams (timeout 30 s)" step
+node manifestDisponible "¿Manifest obtenido?" decision
+node candidatosAudio "¿Hay pistas descargables?" decision
+node ordenarCandidatos "Ordenar audioOnly y muxed según el método" step
+node quedanCandidatos "¿Queda un candidato?" decision
+node tamanoConocido "¿Tamaño total del stream conocido?" decision
+node descargarConProgreso "Descargar por chunks y actualizar progreso" step
+node descargarIndeterminado "Descargar stream con progreso indeterminado" step
+node archivoValido "¿Archivo temporal existe y no está vacío?" decision
+node convertirMp3 "Convertir a MP3 con FFmpeg (hasta 2 intentos)" step
+node mp3Valido "¿MP3 creado y no está vacío?" decision
+node limpiarCandidato "Registrar fallo y borrar archivos parciales" step
+node errorFinal "Construir error con el último intento" step
+node mostrarErrorDescarga "Mostrar aviso resumido con Mostrar y Opciones" step
+node accionError "¿Mostrar detalle, Opciones o cerrar?" decision
+node mostrarDetalle "Abrir diálogo con el error completo" step
+node aceptarDetalle "Aceptar el detalle del error" end
+node finAvisoCerrado "Fin: aviso cerrado o expirado" end
+node devolverTrack "Borrar temporal, devolver MP3 y crear AudioTrack" step
+node interfazDisponible "¿La interfaz sigue montada?" decision
+node finInterfazCerrada "Fin: archivo creado sin actualizar la interfaz" end
+node rutaNueva "¿La ruta no está registrada?" decision
+node anadirDescarga "Añadir descarga a la lista" step
+node guardarJson "Guardar StoredState en JSON interno" step
+node guardadoCorrecto "¿Guardado correcto?" decision
+node errorGuardado "Mostrar error de persistencia y continuar" step
+node mostrarExito "Mostrar descarga completada" step
+node limpiarEstado "Liberar vídeo y progreso de descarga" step
+node finExito "Fin: audio disponible en la biblioteca local" end
+
+edge inicio -> escribirConsulta "Entrar" forward
+edge escribirConsulta -> validarConsulta "Buscar" forward
+edge validarConsulta -> prepararBusqueda "Sí" forward
+edge validarConsulta -> finConsultaInvalida "No" forward
+edge prepararBusqueda -> buscarYoutube "Consultar" forward
+edge buscarYoutube -> resultadoBusqueda "Respuesta" forward
+edge resultadoBusqueda -> mostrarResultados "Correcta" forward
+edge resultadoBusqueda -> mostrarErrorBusqueda "Error o timeout" forward
+edge mostrarErrorBusqueda -> finErrorBusqueda "Aviso mostrado" forward
+edge mostrarResultados -> accionVideo "Resultados listados" forward
+edge accionVideo -> iniciarDescarga "Descargar" forward
+edge accionVideo -> abrirOpciones "Opciones" forward
+edge accionVideo -> finSoloResultados "No actuar" forward
+edge abrirOpciones -> elegirMetodo "Mostrar métodos" forward
+edge elegirMetodo -> iniciarDescarga "Sí" forward
+edge elegirMetodo -> finOpcionesCanceladas "No" forward
+edge iniciarDescarga -> elegirDirectorio "Comenzar" forward
+edge elegirDirectorio -> directorioDisponible "Probar candidatos" forward
+edge directorioDisponible -> obtenerNombre "Sí" forward
+edge directorioDisponible -> mostrarErrorDescarga "No: carpeta no disponible" forward
+edge obtenerNombre -> obtenerManifest "Preparar salida" forward
+edge obtenerManifest -> manifestDisponible "Respuesta" forward
+edge manifestDisponible -> candidatosAudio "Sí" forward
+edge manifestDisponible -> mostrarErrorDescarga "No: error o timeout" forward
+edge candidatosAudio -> ordenarCandidatos "Sí" forward
+edge candidatosAudio -> mostrarErrorDescarga "No: sin pista de audio" forward
+edge ordenarCandidatos -> quedanCandidatos "Candidatos ordenados" forward
+edge quedanCandidatos -> tamanoConocido "Sí" forward
+edge quedanCandidatos -> errorFinal "No" forward
+edge tamanoConocido -> descargarConProgreso "Sí" forward
+edge tamanoConocido -> descargarIndeterminado "No" forward
+edge descargarConProgreso -> archivoValido "Completada" forward
+edge descargarConProgreso -> limpiarCandidato "Error o timeout" forward
+edge descargarIndeterminado -> archivoValido "Completada" forward
+edge descargarIndeterminado -> limpiarCandidato "Error o timeout" forward
+edge archivoValido -> convertirMp3 "Sí" forward
+edge archivoValido -> limpiarCandidato "No" forward
+edge convertirMp3 -> mp3Valido "Resultado" forward
+edge mp3Valido -> devolverTrack "Sí" forward
+edge mp3Valido -> limpiarCandidato "No: probar siguiente" forward
+edge limpiarCandidato -> quedanCandidatos "Siguiente candidato" backward
+edge errorFinal -> mostrarErrorDescarga "Fallo de todos los candidatos" forward
+edge mostrarErrorDescarga -> accionError "Aviso visible" forward
+edge accionError -> mostrarDetalle "Mostrar" forward
+edge mostrarDetalle -> aceptarDetalle "Aceptar" forward
+edge accionError -> abrirOpciones "Opciones" forward
+edge accionError -> finAvisoCerrado "Cerrar o timeout" forward
+edge devolverTrack -> interfazDisponible "Archivo listo" forward
+edge interfazDisponible -> rutaNueva "Sí" forward
+edge interfazDisponible -> finInterfazCerrada "No" forward
+edge rutaNueva -> anadirDescarga "Sí" forward
+edge rutaNueva -> mostrarExito "No: ya registrada" forward
+edge anadirDescarga -> guardarJson "Actualizar lista" forward
+edge guardarJson -> guardadoCorrecto "Guardar" forward
+edge guardadoCorrecto -> mostrarExito "Sí" forward
+edge guardadoCorrecto -> errorGuardado "No" forward
+edge errorGuardado -> mostrarExito "Continuar" forward
+edge mostrarExito -> limpiarEstado "Aviso mostrado" forward
+edge limpiarEstado -> finExito "Estado liberado" forward

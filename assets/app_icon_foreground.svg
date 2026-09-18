@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Primer plano del icono adaptativo de Android (API 26+).
+       Misma nota musical y mismo degradado que `app_icon.svg`, sin fondo:
+       el lienzo queda transparente para que lo recorte la máscara del
+       lanzador y el color de fondo lo ponga `adaptive_icon_background`. -->
+  <defs>
+    <linearGradient id="note" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#7C4DFF"/>
+      <stop offset="1" stop-color="#6FE7FF"/>
+    </linearGradient>
+  </defs>
+  <!-- La nota se escala al 104% del lienzo para que, tras el inset del 16%
+       que aplica el icono adaptativo, quede completa dentro de la zona
+       visible (círculo de 72dp sobre el lienzo de 108dp). -->
+  <g transform="translate(512 512) scale(1.04) translate(-510 -503)">
+    <path d="M190 255h80v430h-80zM750 170h80v430h-80z" fill="url(#note)"/>
+    <path d="M230 215h600v82H230z" fill="url(#note)"/>
+    <circle cx="230" cy="700" r="136" fill="#7C4DFF"/>
+    <circle cx="790" cy="615" r="136" fill="#6FE7FF"/>
+  </g>
+</svg>

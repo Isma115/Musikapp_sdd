@@ -156,25 +156,93 @@ Si la descarga de un audio falla, al lado del botón "Opciones" que aparece en e
 Si una canción consigue comenzar a ser descargada, tiene que ser posible ver una barra de progreso de descarga, la cual será el propio indicador de círculo con un porcentaje, (primero aparece un círculo indicando que se está descargando, pero no indica el progreso de descarga) implementalo de esa manera
 
 ## Fix: Audio interrumpido al ejecutar en segundo plano
-- Estado: Activa
+- Estado: Implementada
 - Categoría: Fix
 - Color: Rojo
 
 Ocurre un error al momento de que el audio se reproduzca en segundo plano, ya sea con la app ejecutándose en segundo plano o con el teléfono con la pantalla apagada, pasado un tiempo de reproducción, la app se cierra automáticamente, comprueba que puede estar pasando y dale una solución permanente
 
 ## Fix: Toasts demasiado largos
-- Estado: Activa
+- Estado: Implementada
 - Categoría: Fix
 - Color: Rojo
 
 Los mensajes de Toast que salen en la aplicación tardan muchísimo en cerrarse o nunca se cierran automáticamente, corrígelo
 
 ## Icono de aplicación
-- Estado: Activa
+- Estado: Implementada
 - Categoría: Diseño
 - Color: Amarillo
 
 El icono principal de la aplicación debe ser original y atractivo, pero simple, impleméntalo para que aparezca el icono al utilizar la app
+
+## Mejora de paleta de colores
+- Estado: Implementada
+- Categoría: Diseño
+- Color: Amarillo
+
+Mejora la paleta de colores para que sea más diversa moderna pero no saturada y tampoco sobrecargada
+
+## Tamaño de apk
+- Estado: Implementada
+- Categoría: Rendimiento
+- Color: Azul
+
+Trata de reducir el tamaño del fichero apk instalable, por que ocupa tanto y como hacer que sea más pequeño
+
+## Fix: Sección de reproducción
+- Estado: Implementada
+- Categoría: Fix
+- Color: Rojo
+
+Al momento de reproducir una canción determinada, la sección de reproducción de la canción (el pequeño cuadro que aparece abajo con los controles de reproducción) No aparece justo al momento de reproducir la canción, sino al volver hacia atrás a la vista de las playlists
+
+## Botón cerrar reproducción
+- Estado: Implementada
+- Categoría: Funcional
+- Color: Azul
+
+Permite detener una reproducción de canción deteniéndola y cerrando la ventanita que aparece mostrando la canción reproduciéndose
+
+## Cuadros pequeños panel de navegación
+- Estado: Implementada
+- Categoría: Diseño
+- Color: Amarillo
+
+El espacio que cubre los botones de navegación al momento de que uno está seleccionado (el color de selección) no cubre al completo el botón entero del navegador
+
+## Textos responsive
+- Estado: Implementada
+- Categoría: Diseño
+- Color: Amarillo
+
+Los textos del menú inferior de navegación aparecen divididos, cambia el texto Recomendaciones, por Recomendar, y Visor Youtube, por simplemente Youtube
+
+## Reproducción desde Youtube
+- Estado: Implementada
+- Categoría: Funcional
+- Color: Azul
+
+Permite poder escuchar un audio de Youtube desde Visor de Youtube sin necesidad de descargarlo
+
+## Iconos atractivos
+- Estado: Implementada
+- Categoría: Diseño
+- Color: Amarillo
+
+En el fondo de las vistas de forma sutil que aparezca iconos símbolos en grande para decorar más visualmente la aplicación
+
+## El botón de "Añadir x" no tiene que tener el botón "+" duplicado, ahora mismo si lo tiene
+- Estado: Implementada
+- Categoría: Diseño
+- Color: Amarillo
+
+## Icono de playlist con color
+- Estado: Implementada
+- Categoría: Diseño
+- Color: Amarillo
+
+Permite darle color al icono de cada playlist
 
 # BBDD
 

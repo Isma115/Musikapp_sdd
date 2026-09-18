@@ -9,7 +9,10 @@ import '../services/local_storage_service.dart';
 import '../services/music_scanner.dart';
 import '../services/recommendation_service.dart';
 import '../services/youtube_audio_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/app_navigation_bar.dart';
 import '../widgets/playback_bar.dart';
+import '../widgets/playlist_icon_picker.dart';
 import 'playlist_detail_page.dart';
 import 'playlists_view.dart';
 import 'recommendations_view.dart';
@@ -42,8 +45,8 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
   static const viewTitles = <String>[
     'Playlists',
     'Descargar',
-    'Recomendaciones',
-    'Visor de YouTube',
+    'Recomendar',
+    'Youtube',
   ];
 
   late final LocalStorageService _storage;
@@ -55,6 +58,7 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
   final _downloadSearchController = TextEditingController();
   final _viewerSearchController = TextEditingController();
   final _downloadingVideoIds = <String>{};
+  final _streamingVideoIds = <String>{};
   final _downloadProgress = <String, double>{};
 
   List<Playlist> _playlists = const <Playlist>[];
@@ -64,6 +68,11 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
   List<YouTubeVideo> _viewerResults = const <YouTubeVideo>[];
 
   int _selectedIndex = 0;
+  // Spec "Fix: Sección de reproducción": el detalle de playlist se muestra
+  // dentro del shell (debajo del AppBar y por encima de las barras inferiores)
+  // en lugar de empujar una ruta nueva por encima de todo. Al ser una ruta
+  // aparte, la barra de reproducción quedaba tapada hasta volver a Playlists.
+  int? _selectedPlaylistIndex;
   bool _isLoading = false;
   bool _isScanning = false;
   bool _isDownloadingSearch = false;
@@ -156,27 +165,48 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
 
   Future<void> _createPlaylist() async {
     final controller = TextEditingController();
+    // Spec "Icono de playlist con color": el color del icono se puede elegir ya
+    // al crear la playlist; si no se elige ninguno, queda sin color propio.
+    var iconColorIndex = removePlaylistIconColor;
     final name = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Nueva Playlist'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
-          decoration: const InputDecoration(labelText: 'Nombre'),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (_, setDialogState) => AlertDialog(
+          title: const Text('Nueva Playlist'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+                decoration: const InputDecoration(labelText: 'Nombre'),
+              ),
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('Color del icono'),
+              ),
+              IconColorSwatchRow(
+                selectedIndex: iconColorIndex,
+                onSelected: (index) =>
+                    setDialogState(() => iconColorIndex = index),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+              child: const Text('Añadir'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: const Text('Añadir'),
-          ),
-        ],
       ),
     );
     controller.dispose();
@@ -197,28 +227,55 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
     }
 
     setState(() {
-      _playlists = <Playlist>[..._playlists, Playlist(name: trimmedName)];
+      _playlists = <Playlist>[
+        ..._playlists,
+        Playlist(
+          name: trimmedName,
+          iconColorIndex: iconColorIndex == removePlaylistIconColor
+              ? null
+              : iconColorIndex,
+        ),
+      ];
     });
     await _persist();
   }
 
-  Future<void> _openPlaylist(int playlistIndex) async {
-    final playlist = _playlists[playlistIndex];
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => PlaylistDetailPage(
-          playlist: playlist,
-          availableTracks: _libraryTracks,
-          onTracksChanged: (tracks) =>
-              _replacePlaylistTracks(playlistIndex, tracks),
-          onPlayQueue: (tracks, startIndex) =>
-              _playTracks(tracks, startIndex: startIndex),
-        ),
-      ),
-    );
-    if (mounted) {
-      setState(() {});
+  /// Spec "Icono de playlist con color": aplica o quita el color del icono de
+  /// una playlist y lo guarda en el dispositivo.
+  void _changePlaylistIconColor(int playlistIndex, int? iconColorIndex) {
+    if (playlistIndex < 0 || playlistIndex >= _playlists.length) {
+      return;
     }
+    final updated = _playlists[playlistIndex].copyWithIconColor(iconColorIndex);
+    if (updated.iconColorIndex == _playlists[playlistIndex].iconColorIndex) {
+      return;
+    }
+    setState(() => _playlists[playlistIndex] = updated);
+    unawaited(_persist());
+  }
+
+  Future<void> _openPlaylist(int playlistIndex) async {
+    if (playlistIndex < 0 || playlistIndex >= _playlists.length) {
+      return;
+    }
+    setState(() => _selectedPlaylistIndex = playlistIndex);
+  }
+
+  /// Vuelve del detalle de playlist a la lista, sin salir de la aplicación.
+  void _closePlaylist() {
+    if (_selectedPlaylistIndex == null) {
+      return;
+    }
+    setState(() => _selectedPlaylistIndex = null);
+  }
+
+  void _selectView(int index) {
+    setState(() {
+      _selectedIndex = index;
+      // Las vistas se sustituyen, no se apilan: cambiar de pestaña cierra el
+      // detalle abierto para no reencontrarlo al volver.
+      _selectedPlaylistIndex = null;
+    });
   }
 
   void _replacePlaylistTracks(int playlistIndex, List<AudioTrack> tracks) {
@@ -261,6 +318,19 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
     } on Object {
       if (mounted) {
         _showMessage('No se pudo reproducir la canción seleccionada.');
+      }
+    }
+  }
+
+  Future<void> _closePlayback() async {
+    try {
+      await _player.stop();
+      if (mounted) {
+        setState(() => _isPlayerExpanded = false);
+      }
+    } on Object {
+      if (mounted) {
+        _showMessage('No se pudo detener la reproducción.');
       }
     }
   }
@@ -354,6 +424,29 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _playYouTubeVideo(YouTubeVideo video) async {
+    if (_streamingVideoIds.contains(video.id)) {
+      return;
+    }
+    setState(() => _streamingVideoIds.add(video.id));
+    try {
+      final streamUri = await _youtubeService.getAudioStreamUri(video);
+      await _player.playStream(streamUri, name: video.title);
+    } on Object catch (error) {
+      if (mounted) {
+        _showMessage(
+          error is StateError
+              ? error.message
+              : 'No se pudo reproducir el audio de YouTube.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _streamingVideoIds.remove(video.id));
+      }
+    }
+  }
+
   Future<void> _downloadVideo(
     YouTubeVideo video, {
     DownloadMethod method = DownloadMethod.automatic,
@@ -435,6 +528,12 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
             onPressed: () => _showDownloadOptions(video),
           ),
           duration: _snackBarDuration,
+          // Spec "Fix: Toasts demasiado largos": en Flutter, cuando un SnackBar
+          // lleva `action` el valor por defecto de `persist` es true, así que
+          // este aviso se quedaba en pantalla indefinidamente hasta que el
+          // usuario lo descartara. Se fuerza false para que se cierre solo
+          // pasado [_snackBarDuration] conservando el botón "Opciones".
+          persist: false,
         ),
       );
   }
@@ -500,80 +599,150 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(viewTitles[_selectedIndex]),
-        actions: [
-          if (_selectedIndex == 0)
-            IconButton(
-              onPressed: _isScanning ? null : _rescanMusic,
-              tooltip: 'Escanear música',
-              icon: _isScanning
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh),
+    final selectedPlaylistIndex = _selectedPlaylistIndex;
+    final isPlaylistOpen =
+        selectedPlaylistIndex != null &&
+        selectedPlaylistIndex < _playlists.length;
+    return PopScope<void>(
+      // Spec "Fix: Sección de reproducción": el detalle ya no es una ruta, así
+      // que se intercepta el gesto/botón atrás del sistema para volver a la
+      // lista de playlists en lugar de cerrar la aplicación.
+      canPop: !isPlaylistOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          _closePlaylist();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            isPlaylistOpen
+                ? _playlists[selectedPlaylistIndex].name
+                : viewTitles[_selectedIndex],
+          ),
+          leading: isPlaylistOpen
+              ? IconButton(
+                  onPressed: _closePlaylist,
+                  tooltip: 'Volver a las playlists',
+                  icon: const Icon(Icons.arrow_back),
+                )
+              : null,
+          actions: [
+            if (_selectedIndex == 0 && !isPlaylistOpen)
+              IconButton(
+                onPressed: _isScanning ? null : _rescanMusic,
+                tooltip: 'Escanear música',
+                icon: _isScanning
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+              ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _buildSelectedView(),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PlayerBar(
+              player: _player,
+              isExpanded: _isPlayerExpanded,
+              onExpandChanged: (expanded) =>
+                  setState(() => _isPlayerExpanded = expanded),
+              onToggle: _togglePlayback,
+              onNext: _playNextInQueue,
+              onPrevious: _playPreviousInQueue,
+              onClose: _closePlayback,
             ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildSelectedView(),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PlayerBar(
-            player: _player,
-            isExpanded: _isPlayerExpanded,
-            onExpandChanged: (expanded) =>
-                setState(() => _isPlayerExpanded = expanded),
-            onToggle: _togglePlayback,
-            onNext: _playNextInQueue,
-            onPrevious: _playPreviousInQueue,
-          ),
-          NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
-              setState(() => _selectedIndex = index);
-            },
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.queue_music_outlined),
-                selectedIcon: Icon(Icons.queue_music),
-                label: 'Playlists',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.download_outlined),
-                selectedIcon: Icon(Icons.download),
-                label: 'Descargar',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.auto_awesome_outlined),
-                selectedIcon: Icon(Icons.auto_awesome),
-                label: 'Recomendaciones',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.ondemand_video_outlined),
-                selectedIcon: Icon(Icons.ondemand_video),
-                label: 'Visor YouTube',
-              ),
-            ],
-          ),
-        ],
+            AppNavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: _selectView,
+              selectionColor: appSectionSelectionColors[_selectedIndex],
+              destinations: <NavigationDestination>[
+                _buildDestination(
+                  0,
+                  Icons.queue_music_outlined,
+                  Icons.queue_music,
+                  'Playlists',
+                ),
+                _buildDestination(
+                  1,
+                  Icons.download_outlined,
+                  Icons.download,
+                  'Descargar',
+                ),
+                _buildDestination(
+                  2,
+                  Icons.auto_awesome_outlined,
+                  Icons.auto_awesome,
+                  'Recomendar',
+                ),
+                _buildDestination(
+                  3,
+                  Icons.ondemand_video_outlined,
+                  Icons.ondemand_video,
+                  'Youtube',
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  /// Destino de la navegación inferior con el acento de su área.
+  ///
+  /// Spec "Mejora de paleta de colores": cada área tiene su propio tono (índigo
+  /// en Playlists, azul en Descargar y YouTube, violeta en Recomendaciones) en
+  /// lugar de repetir el mismo color en los cuatro iconos. El icono no
+  /// seleccionado usa ese mismo tono aclarado, así que la paleta se mantiene
+  /// suave y no saturada.
+  NavigationDestination _buildDestination(
+    int index,
+    IconData icon,
+    IconData selectedIcon,
+    String label,
+  ) {
+    final accent = appSectionAccents[index];
+    return NavigationDestination(
+      icon: Icon(icon, color: Color.lerp(accent, Colors.white, 0.55)),
+      selectedIcon: Icon(selectedIcon, color: accent),
+      label: label,
+    );
+  }
+
   Widget _buildSelectedView() {
-    switch (_selectedIndex) {
-      case 0:
-        return PlaylistsView(
-          playlists: _playlists,
-          onCreatePlaylist: _createPlaylist,
-          onOpenPlaylist: _openPlaylist,
+    if (_selectedIndex == 0) {
+      final selectedPlaylistIndex = _selectedPlaylistIndex;
+      if (selectedPlaylistIndex != null &&
+          selectedPlaylistIndex < _playlists.length) {
+        return PlaylistDetailPage(
+          // El detalle se reconstruye al cambiar de playlist, no al
+          // actualizarse la lista de canciones.
+          key: ValueKey<String>('playlist-$selectedPlaylistIndex'),
+          playlist: _playlists[selectedPlaylistIndex],
+          availableTracks: _libraryTracks,
+          onTracksChanged: (tracks) =>
+              _replacePlaylistTracks(selectedPlaylistIndex, tracks),
+          onPlayQueue: (tracks, startIndex) =>
+              _playTracks(tracks, startIndex: startIndex),
+          onIconColorChanged: (iconColorIndex) =>
+              _changePlaylistIconColor(selectedPlaylistIndex, iconColorIndex),
         );
+      }
+      return PlaylistsView(
+        playlists: _playlists,
+        onCreatePlaylist: _createPlaylist,
+        onOpenPlaylist: _openPlaylist,
+        onChangeIconColor: _changePlaylistIconColor,
+      );
+    }
+    switch (_selectedIndex) {
       case 1:
         return _buildDownloadView();
       case 2:
@@ -585,6 +754,7 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
           playlists: _playlists,
           onCreatePlaylist: _createPlaylist,
           onOpenPlaylist: _openPlaylist,
+          onChangeIconColor: _changePlaylistIconColor,
         );
     }
   }
@@ -598,10 +768,12 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
     error: _downloadError,
     downloadingVideoIds: _downloadingVideoIds,
     downloadProgress: _downloadProgress,
+    streamingVideoIds: _streamingVideoIds,
     onSearch: _searchYouTube,
     onDownload: _downloadVideo,
     onShowDownloadOptions: _showDownloadOptions,
     onOpenVideo: _openYouTubeVideo,
+    onPlayVideo: _playYouTubeVideo,
   );
 
   Widget _buildViewerView() => YouTubeSearchView(
@@ -613,10 +785,12 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
     error: _viewerError,
     downloadingVideoIds: _downloadingVideoIds,
     downloadProgress: _downloadProgress,
+    streamingVideoIds: _streamingVideoIds,
     onSearch: _searchYouTube,
     onDownload: _downloadVideo,
     onShowDownloadOptions: _showDownloadOptions,
     onOpenVideo: _openYouTubeVideo,
+    onPlayVideo: _playYouTubeVideo,
   );
 
   Widget _buildRecommendationsView() {
