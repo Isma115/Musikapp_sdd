@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/app_models.dart';
+import '../models/audio_settings.dart';
 import '../services/audio_player_service.dart';
 import '../services/local_storage_service.dart';
 import '../services/music_scanner.dart';
@@ -11,6 +12,7 @@ import '../services/recommendation_service.dart';
 import '../services/youtube_audio_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_navigation_bar.dart';
+import '../widgets/audio_settings_sheet.dart';
 import '../widgets/playback_bar.dart';
 import '../widgets/playlist_icon_picker.dart';
 import 'playlist_detail_page.dart';
@@ -68,6 +70,11 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
   List<YouTubeVideo> _viewerResults = const <YouTubeVideo>[];
 
   int _selectedIndex = 0;
+  // Spec "Sistema de regulación de audio y efectos": valores de reproducción y
+  // efecto de sonido elegidos en el panel de audio. Se mantienen en memoria
+  // mientras la aplicación está abierta, como el resto del estado de
+  // reproducción.
+  AudioSettings _audioSettings = const AudioSettings();
   // Spec "Fix: Sección de reproducción": el detalle de playlist se muestra
   // dentro del shell (debajo del AppBar y por encima de las barras inferiores)
   // en lugar de empujar una ruta nueva por encima de todo. Al ser una ruta
@@ -149,6 +156,34 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
       _isScanning = false;
     });
     _showMessage('Escaneo completado: ${scannedTracks.length} canciones.');
+  }
+
+  /// Spec "Sistema de regulación de audio y efectos": abre el panel del botón
+  /// contiguo al de recargar.
+  Future<void> _openAudioSettings() {
+    return showAudioSettingsSheet(
+      context: context,
+      settings: _audioSettings,
+      supportsSoundEffects: _player.supportsSoundEffects,
+      onChanged: _applyAudioSettings,
+    );
+  }
+
+  /// Aplica los ajustes elegidos al reproductor para que el cambio se escuche
+  /// al momento, sin esperar a cerrar el panel.
+  void _applyAudioSettings(AudioSettings settings) {
+    setState(() => _audioSettings = settings);
+    unawaited(_sendAudioSettings(settings));
+  }
+
+  Future<void> _sendAudioSettings(AudioSettings settings) async {
+    try {
+      await _player.applyAudioSettings(settings);
+    } on Object {
+      if (mounted) {
+        _showMessage('No se pudieron aplicar los ajustes de audio.');
+      }
+    }
   }
 
   Future<void> _persist() async {
@@ -639,6 +674,14 @@ class MusicShellState extends State<MusicShell> with WidgetsBindingObserver {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh),
+              ),
+            // Spec "Sistema de regulación de audio y efectos": botón junto al de
+            // recargar para regular los valores de reproducción y los efectos.
+            if (_selectedIndex == 0 && !isPlaylistOpen)
+              IconButton(
+                onPressed: _openAudioSettings,
+                tooltip: 'Audio y efectos',
+                icon: const Icon(Icons.tune),
               ),
           ],
         ),

@@ -5,6 +5,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 
 import '../models/app_models.dart';
+import '../models/audio_settings.dart';
+import 'audio_effects_service.dart';
 
 /// Estado de la cola de reproducción actual.
 class PlaybackQueueState {
@@ -24,15 +26,27 @@ class PlaybackQueueState {
 /// recomendaciones). No persiste nada: respeta el almacenamiento local
 /// existente sin añadir tablas ni recursos.
 class AudioPlayerService {
-  AudioPlayerService({AudioPlayer? player}) : _player = player ?? AudioPlayer();
+  AudioPlayerService({AudioPlayer? player, AudioEffectsService? effects})
+    : _effects = effects ?? AudioEffectsService.forCurrentPlatform() {
+    // Spec "Sistema de regulación de audio y efectos": los efectos de sonido
+    // deben viajar en el pipeline del reproductor, así que el pipeline se crea
+    // antes que él con los efectos de la plataforma actual. Un reproductor
+    // inyectado (pruebas) conserva su propio pipeline.
+    _player = player ?? AudioPlayer(audioPipeline: _effects.pipeline);
+  }
 
-  final AudioPlayer _player;
+  late final AudioPlayer _player;
+  late final AudioEffectsService _effects;
   final _queueController = StreamController<PlaybackQueueState?>.broadcast();
   PlaybackQueueState? _queueState;
   bool _disposed = false;
   int _playbackRequest = 0;
 
   AudioPlayer get player => _player;
+
+  /// Indica si la plataforma puede aplicar efectos de sonido (spec "Sistema de
+  /// regulación de audio y efectos").
+  bool get supportsSoundEffects => AudioEffectsService.supportsSoundEffects;
 
   PlaybackQueueState? get currentQueue => _queueState;
 
@@ -152,6 +166,14 @@ class AudioPlayerService {
   }
 
   Future<void> seek(Duration position) => _player.seek(position);
+
+  /// Aplica los valores de reproducción y el efecto de sonido elegidos en el
+  /// panel de audio (spec "Sistema de regulación de audio y efectos").
+  ///
+  /// Los ajustes valen para lo que suene a partir de ahora, incluida la
+  /// siguiente canción: `just_audio` los conserva al cambiar de fuente.
+  Future<void> applyAudioSettings(AudioSettings settings) =>
+      _effects.apply(_player, settings);
 
   Future<void> _playCurrent(int request) async {
     if (_disposed || request != _playbackRequest) {

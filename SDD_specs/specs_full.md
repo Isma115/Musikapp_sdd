@@ -244,6 +244,13 @@ En el fondo de las vistas de forma sutil que aparezca iconos símbolos en grande
 
 Permite darle color al icono de cada playlist
 
+## Sistema de regulación de audio y efectos
+- Estado: Implementada
+- Categoría: Funcional
+- Color: Azul
+
+Junto al lado del botón de recargar habrá un botón que permita subir varios valores de reproducción del audio y además añadir efectos de sonido especiales
+
 # BBDD
 
 No hay tablas definidas.
